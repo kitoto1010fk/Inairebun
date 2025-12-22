@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>イナズマイレブン格言クイズ</title>
+    <style>
+        /* --- デザイン設定 --- */
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent: #38bdf8;
+            --correct: #4ade80;
+            --wrong: #f87171;
+            --text: #f1f5f9;
+        }
+
+        body {
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            color: var(--text);
+            font-family: 'Segoe UI', "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .game-container {
+            background: var(--card-bg);
+            width: 90%;
+            max-width: 450px;
+            padding: 2rem;
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* スコアとプログレスバー */
+        .hud { margin-bottom: 1.5rem; }
+        .score-board { font-weight: 800; color: var(--accent); letter-spacing: 2px; }
+        .progress-wrapper { background: rgba(255,255,255,0.1); height: 8px; border-radius: 4px; margin: 10px 0 5px; }
+        #progress-bar { height: 100%; width: 0%; background: var(--accent); border-radius: 4px; transition: 0.5s; box-shadow: 0 0 10px var(--accent); }
+        #progress-text { font-size: 0.7rem; text-align: right; color: #94a3b8; }
+
+        /* 問題と選択肢 */
+        #question { font-size: 1.1rem; min-height: 60px; margin-bottom: 1.5rem; line-height: 1.4; font-weight: bold; }
+        .choice-grid { display: grid; gap: 10px; }
+        .choice {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text);
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            text-align: left;
+            cursor: pointer;
+            transition: 0.2s;
+            width: 100%;
+        }
+        .choice:hover:not(:disabled) { background: rgba(56, 189, 248, 0.1); border-color: var(--accent); }
+
+        /* 正誤演出 */
+        .correct-choice { background: var(--correct) !important; color: #064e3b !important; font-weight: bold; }
+        .wrong-choice { background: var(--wrong) !important; color: #7f1d1d !important; animation: shake 0.4s; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+
+        /* フィードバック */
+        #result-label { font-weight: bold; margin-bottom: 5px; font-size: 1.1rem; }
+        .exp-box { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px; border-left: 4px solid var(--accent); margin: 15px 0; font-size: 0.85rem; line-height: 1.5; }
+        .pulse-btn { background: var(--accent); color: #0f172a; border: none; padding: 12px; border-radius: 8px; font-weight: bold; width: 100%; cursor: pointer; transition: 0.3s; margin-top: 10px; }
+        .pulse-btn:hover { opacity: 0.8; transform: scale(1.02); }
+
+        /* リザルト画面 */
+        #result-screen { text-align: center; }
+        .glitch { font-size: 2.2rem; margin-bottom: 1rem; font-weight: 900; letter-spacing: -1px; }
+        #final-score-display { font-size: 4rem; font-weight: 900; color: var(--accent); line-height: 1; }
+        #rank-badge { margin: 1.5rem 0; font-weight: bold; font-size: 1.1rem; color: #fbbf24; padding: 12px; border: 2px solid #fbbf24; border-radius: 15px; background: rgba(251, 191, 36, 0.05); }
+        .retry-btn { background: transparent; border: 1px solid var(--text); color: var(--text); padding: 12px 24px; border-radius: 24px; cursor: pointer; margin-top: 1rem; transition: 0.3s; font-weight: bold; }
+        .retry-btn:hover { background: var(--text); color: var(--bg-color); }
+
+        .hidden { display: none; }
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <div class="hud">
+        <div class="score-board">SCORE: <span id="score">0</span></div>
+        <div class="progress-wrapper">
+            <div id="progress-bar"></div>
+        </div>
+        <p id="progress-text"></p>
+    </div>
+    
+    <div id="quiz-screen" class="fade-in">
+        <h2 id="question">読み込み中...</h2>
+        <div id="choices" class="choice-grid"></div>
+        
+        <div id="feedback-area" class="hidden">
+            <div id="result-label"></div>
+            <div class="exp-box">
+                <p id="explanation"></p>
+            </div>
+            <button id="next-btn" class="pulse-btn">CONTINUE</button>
+        </div>
+    </div>
+
+    <div id="result-screen" class="hidden fade-in">
+        <h1 id="result-title" class="glitch">GAME OVER</h1>
+        <div class="final-stat">
+            <p style="margin-bottom: 0.5rem; opacity: 0.7;">FINAL SCORE</p>
+            <div id="final-score-display">0</div>
+        </div>
+        <div id="rank-badge"></div>
+        <button class="retry-btn" onclick="location.reload()">もう一回、サッカーやろうぜ！</button>
+    </div>
+</div>
+
+<script>
+const QUIZ_LIST = [
+    { q: "何も始まってないうちから", c: ["諦めるな！", "終わらせるな！", "やめるな！"], a: 0, e: "【第１話】記念すべき最初の今日の格言。廃部寸前のサッカー部を鼓舞する力強い言葉。" },
+    { q: "勝利の女神がどっちに微笑むか、", c: ["最後までわからない", "そんなのわからないだろ！", "やってみるまで分からない"], a: 0, e: "【第２話】帝国学園との闘い。こんだけ言って1－20の大差。本当の格言は「遅すぎるぜ、お前」" },
+    { q: "お前にはお前のサッカーがある。", c: ["もっと自分に自信をもて！", "他人を追いかけるな", "俺には俺のサッカーがある。"], a: 0, e: "【第３話】必殺技を使えない染岡さんが、豪炎寺に嫉妬をむき出しにしていた時の一言。" },
+    { q: "１人じゃ出来ないことも、", c: ["２人で力を合わせれば出来るんだ！", "みんなでやればできるんだ！", "俺はできる！"], a: 0, e: "【第４話】オカルト中の催眠術。あれ卑怯すぎる。あと、染岡は一つ必殺技覚えたからって調子乗りすぎ。" },
+    { q: "人間、ダメだと思ったときこそ", c: ["ほんとうの力が出てくる", "諦めるな", "練習だ！"], a: 0, e: "【第５話】スパイの土門が入ってきた。秘伝書で「イナズマ落とし」の練習を始める話。" },
+    { q: "無駄な努力なんてない！", c: ["精一杯の努力はきっと実を結ぶ", "だから練習だ！", "いずれ実を結んで強くなる！"], a: 0, e: "【第６話】野生（のせ）中との戦い。空中戦を制するために「イナズマ落とし」を完成させないと…、豪炎寺が壁山にかける名言。" },
+    { q: "試練を乗り越えれば、", c: ["新しい道が見える！", "また一つ強くなれる！", "成長できる！"], a: 0, e: "【第７話】この話からなつみのデレが見えてきます。御影専農戦。" },
+    { q: "勝利を強く信じる者に", c: ["勝利の女神は微笑むんだ！", "勝利はやってくる！", "力が湧いてくる！"], a: 0, e: "【第８話】キーパーが上がっていってシュートを決める狂ったサッカー「イナズマ一号」。" },
+    { q: "本気でやる気になってる奴は、", c: ["ここ一番で頼りになる！", "信じられる！", "みんな仲間だ！"], a: 0, e: "【第９話】きた。最強のキーパー。五里霧中からのゴールずらし。めがね君がいなきゃ負けていた。" },
+    { q: "勝てば全国！負けても全国！", c: ["なにがなんでも全国だ！！", "気軽に戦おう！", "だったら勝って行こうぜ！"], a: 0, e: "【第１０話】犯罪者冬海先生。ゲームだとバスに爆弾を仕掛けますよね。番外戦も超次元。" },
+    { q: "人生まだまだ", c: ["終わってねーぞ！！", "やりきるぞ！", "戦うぞー！"], a: 0, e: "【第１１話】新しい監督の響監督。「雷雷軒」このラーメン店の名前、なぜか忘れません。" },
+    { q: "気持ちには気持ちで応える！", c: ["それが本気の相手への礼儀だ！", "それが信頼だ！", "それが仲間だ！"], a: 0, e: "【第１２話】ついに帝国学園戦。こないだの練習試合で１対２０やったのに勝てるわけない。" },
+    { q: "自分の大好きなものに", c: ["嘘をつくな！！", "応えるんだ！", "守られてたんだ。"], a: 0, e: "【第１３話】「イナズマ1号落とし」とかいう謎のオリジナル技。てか1号あるのに2号ないよね。" },
+    { q: "やっぱり", c: ["元祖はすごい！", "サッカーが好きだ！", "サッカー最高！"], a: 0, e: "【第１４話】伝説のイレブンが練習相手になってくれたけど、思ったより汚いじじい多くないか？" },
+    { q: "納得できるまで、", c: ["いっぱい考えるんだ！", "チャレンジだ！", "やればいい！"], a: 0, e: "【第１５話】炎の風見鶏ってマジでかっこいいよな。ゲームでこればっかり使ってた。" },
+    { q: "一筋縄でダメなら二筋縄、", c: ["それでもダメなら三筋縄だ！！", "何とかなるさ！", "絶対にあきらめない！"], a: 0, e: "【第１６話】なんやこの名言。ふざけてるんか？" },
+    { q: "鉄壁を崩すには", c: ["ダイヤモンドの攻めだ！", "みんなの力が必要だ！", "足元から"], a: 0, e: "【第１７話】風丸って忍者っぽいからこの戦国伊賀島戦でメインになってたんやろな。" },
+    { q: "俺たちの本当の必殺技は、", c: ["最後まで諦めない気持ちなんだ！", "サッカーを好きな気持ちだ！", "イナズマブレイクだ！"], a: 0, e: "【第１８話】帝国が10点取られて負けた衝撃。無限の壁、ゲームではめっちゃ強い最強技でした。" },
+    { q: "信頼には", c: ["行動で応えろ！！", "信頼だ！", "絶対応える！"], a: 0, e: "【第１９話】一ノ瀬！ザ・フェニックスかっこいい。全国大会中に2人スタメン加入はあかんやろ。" },
+    { q: "無茶を", c: ["乗り越えろ！！", "楽しめ！", "するな！"], a: 0, e: "【第２０話】木戸川清修、もっとかっこいい三つ子でよかったじゃん。かわいそうやんこの顔で3人。" },
+    { q: "ゴールを背負うって言うのは、", c: ["みんなの想いを繋ぐことだ！", "試合を背負うことだ！", "負けられないんだ！"], a: 0, e: "【第２１話】ゴールキーパーの孤独と責任を熱く語る名言。" },
+    { q: "くよくよ考えたってなんにも変わらない。", c: ["とにかく動くんだ！！", "ちゃんと考えるんだ！", "力を合わせて乗りこえるんだ！"], a: 0, e: "【第２２話】そういや円堂はゴッドハンドしか使えんのか。雑魚やん。" },
+    { q: "練習はおにぎりだ！", c: ["いずれ、血となり肉となる！！", "おいしいおにぎりうれしいな。", "試合はパンだ！"], a: 0, e: "【第２３話】これぞ名言。おにぎりを見るたびに思い出す。" },
+    { q: "戦える、", c: ["みんなと一緒なら！！", "力を合わせろ！", "戦えるんだ！"], a: 0, e: "【第２４話】最終戦前の合宿（特訓）編。実は試合より練習がメインの話が好きです。" },
+    { q: "みんなと優勝を目指す！", c: ["サッカーが好きだから！！", "みんなが好きだから！", "勝利が好きだから！"], a: 0, e: "【第２５話】きました、ドーピング神のアクア。これは尿検査陽性確定。" },
+    { q: "信じてくれる仲間がいる限り、", c: ["俺は何度でも立ち上がる！", "絶対にゴールは守り切る！", "俺は絶対あきらめない！"], a: 0, e: "【第２６話】円堂が新しい技でボールを止める。←わかる その後相手が弱くなってゴール決まる←わからん" }
+];
+
+let indices = [];
+let score = 0;
+const totalCount = QUIZ_LIST.length;
+
+function init() {
+    indices = [...Array(totalCount).keys()].sort(() => Math.random() - 0.5);
+    score = 0;
+    document.getElementById("score").innerText = "0";
+    renderQuestion();
+}
+
+function renderQuestion() {
+    if (indices.length === 0) return showResult(true);
+
+    const quiz = QUIZ_LIST[indices[0]];
+    const currentNum = totalCount - indices.length + 1;
+    
+    document.getElementById("progress-bar").style.width = ((currentNum - 1) / totalCount * 100) + "%";
+    document.getElementById("progress-text").innerText = `${currentNum} / ${totalCount}`;
+    document.getElementById("question").innerText = quiz.q;
+    document.getElementById("feedback-area").classList.add("hidden");
+    
+    const correctText = quiz.c[quiz.a];
+    const shuffledChoices = [...quiz.c].sort(() => Math.random() - 0.5);
+    
+    const container = document.getElementById("choices");
+    container.innerHTML = "";
+    
+    shuffledChoices.forEach(choiceText => {
+        if(!choiceText) return;
+        const btn = document.createElement("button");
+        btn.className = "choice";
+        btn.innerText = choiceText;
+        btn.onclick = () => check(choiceText, correctText, btn);
+        container.appendChild(btn);
+    });
+}
+
+function check(selectedText, correctText, clickedBtn) {
+    const isCorrect = selectedText === correctText;
+    const btns = document.querySelectorAll(".choice");
+    btns.forEach(b => b.disabled = true);
+
+    const label = document.getElementById("result-label");
+    if (isCorrect) {
+        clickedBtn.classList.add("correct-choice");
+        label.innerText = "✨ さすがキャプテン！";
+        label.style.color = "var(--correct)";
+        score++;
+        document.getElementById("score").innerText = score;
+    } else {
+        clickedBtn.classList.add("wrong-choice");
+        label.innerText = "❌ キャ、キャプテ〜ン！";
+        label.style.color = "var(--wrong)";
+        btns.forEach(b => { if(b.innerText === correctText) b.classList.add("correct-choice"); });
+    }
+
+    document.getElementById("explanation").innerText = QUIZ_LIST[indices[0]].e;
+    document.getElementById("feedback-area").classList.remove("hidden");
+
+    document.getElementById("next-btn").onclick = () => {
+        if (isCorrect) {
+            indices.shift();
+            renderQuestion();
+        } else {
+            showResult(false);
+        }
+    }
+}
+
+function showResult(isClear) {
+    document.getElementById("quiz-screen").classList.add("hidden");
+    document.getElementById("result-screen").classList.remove("hidden");
+    document.getElementById("final-score-display").innerText = score;
+    document.getElementById("progress-bar").style.width = "100%";
+
+    const title = document.getElementById("result-title");
+    title.innerText = isClear ? "全問正解！" : "回答結果";
+    title.style.color = isClear ? "var(--correct)" : "var(--wrong)";
+
+    const perf = score / totalCount;
+    let rank = "";
+    if (perf === 1) rank = "円堂守級（あんたがキャプテン）";
+    else if (perf >= 0.7) rank = "豪炎寺修也級（伝説のストライカー）";
+    else if (perf >= 0.5) rank = "鬼道有人級（天才ゲームメイカー）";
+    else if (perf >= 0.2) rank = "壁山塀吾郎級（全試合スタメンプレイヤー）";
+    else rank = "栗松鉄平級（栗松、帰国の準備をしろ）";
+    
+    document.getElementById("rank-badge").innerText = rank;
+}
+
+init();
+</script>
+</body>
+</html>
